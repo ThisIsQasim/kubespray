@@ -30,6 +30,7 @@
   roles:
     - { role: kubespray-defaults }
     - { role: bootstrap-os, tags: bootstrap-os}
+    - { role: ipsec, tags: ipsec}
 
 - name: Gather facts
   tags: always

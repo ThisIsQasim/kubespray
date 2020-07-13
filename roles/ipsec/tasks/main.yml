@@ -1,0 +1,31 @@
+---
+- name: insall libreswan
+  package:
+    name: libreswan
+    state: present
+  tags: vpn
+
+- name: copy ipsec secrets
+  template:
+    src: ipsec.secrets.j2
+    dest: /etc/ipsec.secrets
+    mode: '0600'
+  notify:
+    - restart ipsec
+  tags: vpn
+
+- name: copy ipsec conf
+  template:
+    src: ipsec.conf.j2
+    dest: /etc/ipsec.conf
+    mode: '0600'
+  notify:
+    - restart ipsec
+  tags: vpn
+
+- name: start ipsec service
+  service:
+    name: ipsec
+    state: started
+    enabled: yes
+  tags: vpn

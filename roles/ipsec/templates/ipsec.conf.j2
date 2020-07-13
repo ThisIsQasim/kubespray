@@ -1,0 +1,23 @@
+config setup
+    protostack=netkey
+
+{% for host in groups['k8s-cluster'] %}
+{% if hostvars[host]['inventory_hostname'] != inventory_hostname %}
+
+conn {{ hostvars[host]['inventory_hostname'] }}
+    left={{ inventory_hostname }}
+    right={{ hostvars[host]['inventory_hostname'] }}
+    authby=secret
+    auto=start
+    #auto=add
+{% endif %}
+{% endfor %}
+
+{% if vpn_client_psk is defined %}
+conn ipsec_client
+    left={{ inventory_hostname }}
+    right=%any
+    authby=secret
+    auto=start
+    #auto=add
+{% endif %}
