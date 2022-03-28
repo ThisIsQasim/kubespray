@@ -60,6 +60,7 @@
     - ansible_os_family not in ['Suse', 'Flatcar', 'Flatcar Container Linux by Kinvolk', 'ClearLinux']
     - not ansible_distribution == "Fedora"
     - not is_fedora_coreos
+    - not (ansible_distribution in ['RedHat', 'CentOS'] and ansible_facts['distribution_major_version'] | int >= 9)
 
 # (2/3)
 - name: Assign inventory name to unconfigured hostnames (CoreOS, Flatcar, Suse, ClearLinux and Fedora only)
@@ -71,7 +72,8 @@
     override_system_hostname
     and (ansible_os_family in ['Suse', 'Flatcar', 'Flatcar Container Linux by Kinvolk', 'ClearLinux']
     or is_fedora_coreos
-    or ansible_distribution == "Fedora")
+    or ansible_distribution == "Fedora"
+    or (ansible_distribution in ['RedHat', 'CentOS'] and ansible_facts['distribution_major_version'] | int >= 9))
 
 # (3/3)
 - name: Update hostname fact (CoreOS, Flatcar, Suse, ClearLinux and Fedora only)
@@ -82,7 +84,8 @@
     override_system_hostname
     and (ansible_os_family in ['Suse', 'Flatcar', 'Flatcar Container Linux by Kinvolk', 'ClearLinux']
     or is_fedora_coreos
-    or ansible_distribution == "Fedora")
+    or ansible_distribution == "Fedora"
+    or (ansible_distribution in ['RedHat', 'CentOS'] and ansible_facts['distribution_major_version'] | int >= 9))
 
 - name: "Install ceph-commmon package"
   package:
