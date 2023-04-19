@@ -21,25 +21,25 @@ After this step you should have:
 
 ### Kubespray configuration
 
-First in `inventory/sample/group_vars/all.yml` you must set the cloud provider to `external` and external_cloud_provider to `external_cloud_provider`.
+First in `inventory/sample/group_vars/all/all.yml` you must set the `cloud_provider` to `external` and `external_cloud_provider` to `vsphere`.
 
 ```yml
 cloud_provider:  "external"
 external_cloud_provider: "vsphere"
 ```
 
-Then, `inventory/sample/group_vars/vsphere.yml`, you need to declare your vCenter credentials and enable the vSphere CSI following the description below.
+Then, `inventory/sample/group_vars/all/vsphere.yml`, you need to declare your vCenter credentials and enable the vSphere CSI following the description below.
 
-| Variable                               | Required | Type    | Choices                    | Default | Comment                                                                   |
-|----------------------------------------|----------|---------|----------------------------|---------|---------------------------------------------------------------------------|
-| external_vsphere_vcenter_ip            | TRUE     | string  |                            |                           | IP/URL of the vCenter                                   |
-| external_vsphere_vcenter_port          | TRUE     | string  |                            | "443"                     | Port of the vCenter API                                 |
-| external_vsphere_insecure              | TRUE     | string  | "true", "false"            | "true"                    | set to "true" if the host above uses a self-signed cert |
-| external_vsphere_user                  | TRUE     | string  |                            |                           | User name for vCenter with required privileges          |
-| external_vsphere_password              | TRUE     | string  |                            |                           | Password for vCenter                                    |
-| external_vsphere_datacenter            | TRUE     | string  |                            |                           | Datacenter name to use                                  |
-| external_vsphere_kubernetes_cluster_id | TRUE     | string  |                            | "kubernetes-cluster-id"   | Kubernetes cluster ID to use                            |
-| vsphere_csi_enabled                    | TRUE     | boolean |                            | false                     | Enable vSphere CSI                                      |
+| Variable                               | Required | Type    | Choices                    | Default                   | Comment                                                                                                             |
+|----------------------------------------|----------|---------|----------------------------|---------------------------|---------------------------------------------------------------------------------------------------------------------|
+| external_vsphere_vcenter_ip            | TRUE     | string  |                            |                           | IP/URL of the vCenter                                                                                               |
+| external_vsphere_vcenter_port          | TRUE     | string  |                            | "443"                     | Port of the vCenter API                                                                                             |
+| external_vsphere_insecure              | TRUE     | string  | "true", "false"            | "true"                    | set to "true" if the host above uses a self-signed cert                                                             |
+| external_vsphere_user                  | TRUE     | string  |                            |                           | User name for vCenter with required privileges (Can also be specified with the `VSPHERE_USER` environment variable) |
+| external_vsphere_password              | TRUE     | string  |                            |                           | Password for vCenter (Can also be specified with the `VSPHERE_PASSWORD` environment variable)                       |
+| external_vsphere_datacenter            | TRUE     | string  |                            |                           | Datacenter name to use                                                                                              |
+| external_vsphere_kubernetes_cluster_id | TRUE     | string  |                            | "kubernetes-cluster-id"   | Kubernetes cluster ID to use                                                                                        |
+| vsphere_csi_enabled                    | TRUE     | boolean |                            | false                     | Enable vSphere CSI                                                                                                  |
 
 Example configuration:
 
@@ -54,7 +54,7 @@ external_vsphere_kubernetes_cluster_id: "kubernetes-cluster-id"
 vsphere_csi_enabled: true
 ```
 
-For a more fine-grained CSI setup, refer to the [vsphere-csi](vsphere-csi.md) documentation.
+For a more fine-grained CSI setup, refer to the [vsphere-csi](/docs/vsphere-csi.md) documentation.
 
 ### Deployment
 
@@ -90,22 +90,22 @@ cloud_provider: vsphere
 
 Then, in the same file, you need to declare your vCenter credentials following the description below.
 
-| Variable                     | Required | Type    | Choices                    | Default | Comment                                                                                                                                                                                       |
-|------------------------------|----------|---------|----------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| vsphere_vcenter_ip           | TRUE     | string  |                            |         | IP/URL of the vCenter                                                                                                                                                                         |
-| vsphere_vcenter_port         | TRUE     | integer |                            |         | Port of the vCenter API. Commonly 443                                                                                                                                                         |
-| vsphere_insecure             | TRUE     | integer | 1, 0                       |         | set to 1 if the host above uses a self-signed cert                                                                                                                                            |
-| vsphere_user                 | TRUE     | string  |                            |         | User name for vCenter with required privileges                                                                                                                                                |
-| vsphere_password             | TRUE     | string  |                            |         | Password for vCenter                                                                                                                                                                          |
-| vsphere_datacenter           | TRUE     | string  |                            |         | Datacenter name to use                                                                                                                                                                        |
-| vsphere_datastore            | TRUE     | string  |                            |         | Datastore name to use                                                                                                                                                                         |
-| vsphere_working_dir          | TRUE     | string  |                            |         | Working directory from the view "VMs and template" in the   vCenter where VM are placed                                                                                                       |
-| vsphere_scsi_controller_type | TRUE     | string  | buslogic, pvscsi, parallel | pvscsi  | SCSI controller name. Commonly "pvscsi".                                                                                                                                                      |
+| Variable                     | Required | Type    | Choices                    | Default | Comment                                                                                                                                                                                                                                 |
+|------------------------------|----------|---------|----------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| vsphere_vcenter_ip           | TRUE     | string  |                            |         | IP/URL of the vCenter                                                                                                                                                                                                                   |
+| vsphere_vcenter_port         | TRUE     | integer |                            |         | Port of the vCenter API. Commonly 443                                                                                                                                                                                                   |
+| vsphere_insecure             | TRUE     | integer | 1, 0                       |         | set to 1 if the host above uses a self-signed cert                                                                                                                                                                                      |
+| vsphere_user                 | TRUE     | string  |                            |         | User name for vCenter with required privileges                                                                                                                                                                                          |
+| vsphere_password             | TRUE     | string  |                            |         | Password for vCenter                                                                                                                                                                                                                    |
+| vsphere_datacenter           | TRUE     | string  |                            |         | Datacenter name to use                                                                                                                                                                                                                  |
+| vsphere_datastore            | TRUE     | string  |                            |         | Datastore name to use                                                                                                                                                                                                                   |
+| vsphere_working_dir          | TRUE     | string  |                            |         | Working directory from the view "VMs and template" in the   vCenter where VM are placed                                                                                                                                                 |
+| vsphere_scsi_controller_type | TRUE     | string  | buslogic, pvscsi, parallel | pvscsi  | SCSI controller name. Commonly "pvscsi".                                                                                                                                                                                                |
 | vsphere_vm_uuid              | FALSE    | string  |                            |         | VM Instance UUID of virtual machine that host K8s master. Can be retrieved from instanceUuid property in VmConfigInfo, or as vc.uuid in VMX file or in `/sys/class/dmi/id/product_serial` (Optional, only used for Kubernetes <= 1.9.2) |
-| vsphere_public_network       | FALSE    | string  |                            | Blank   | Name of the   network the VMs are joined to                                                                                                                                                   |
-| vsphere_resource_pool        | FALSE    | string  |                            | Blank   | Name of the Resource pool where the VMs are located (Optional, only used for Kubernetes >= 1.9.2)                                                                                                                                                 |
-| vsphere_zone_category        | FALSE    | string  |                            |         | Name of the tag category used to set the `failure-domain.beta.kubernetes.io/zone` label on nodes (Optional, only used for Kubernetes >= 1.12.0)                                                                                                                                                 |
-| vsphere_region_category      | FALSE    | string  |                            |         | Name of the tag category used to set the `failure-domain.beta.kubernetes.io/region` label on nodes (Optional, only used for Kubernetes >= 1.12.0)                                                                                                                                                 |
+| vsphere_public_network       | FALSE    | string  |                            | Blank   | Name of the   network the VMs are joined to                                                                                                                                                                                             |
+| vsphere_resource_pool        | FALSE    | string  |                            | Blank   | Name of the Resource pool where the VMs are located (Optional, only used for Kubernetes >= 1.9.2)                                                                                                                                       |
+| vsphere_zone_category        | FALSE    | string  |                            |         | Name of the tag category used to set the `failure-domain.beta.kubernetes.io/zone` label on nodes (Optional, only used for Kubernetes >= 1.12.0)                                                                                         |
+| vsphere_region_category      | FALSE    | string  |                            |         | Name of the tag category used to set the `failure-domain.beta.kubernetes.io/region` label on nodes (Optional, only used for Kubernetes >= 1.12.0)                                                                                       |
 
 Example configuration:
 

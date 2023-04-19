@@ -28,6 +28,9 @@
 - name: Stat etcd v2 data directory
   stat:
     path: "{{ etcd_data_dir }}/member"
+    get_attributes: no
+    get_checksum: no
+    get_mime: no
   register: etcd_data_dir_member
 
 - name: Backup etcd v2 data
@@ -49,7 +52,7 @@
       snapshot save {{ etcd_backup_directory }}/snapshot.db
   environment:
     ETCDCTL_API: 3
-    ETCDCTL_ENDPOINTS: "{{ etcd_access_addresses }}"
+    ETCDCTL_ENDPOINTS: "{{ etcd_access_addresses.split(',') | first }}"
     ETCDCTL_CERT: "{{ etcd_cert_dir }}/admin-{{ inventory_hostname }}.pem"
     ETCDCTL_KEY: "{{ etcd_cert_dir }}/admin-{{ inventory_hostname }}-key.pem"
     ETCDCTL_CACERT: "{{ etcd_cert_dir }}/ca.pem"

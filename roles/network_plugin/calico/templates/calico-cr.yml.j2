@@ -13,6 +13,14 @@ rules:
       - configmaps
     verbs:
       - get
+  # EndpointSlices are used for Service-based network policy rule
+  # enforcement.
+  - apiGroups: ["discovery.k8s.io"]
+    resources:
+      - endpointslices
+    verbs:
+      - watch
+      - list
   - apiGroups: [""]
     resources:
       - endpoints
@@ -28,6 +36,7 @@ rules:
     resources:
       - nodes/status
     verbs:
+      # Needed for clearing NodeNetworkUnavailable flag.
       - patch
 {% if calico_datastore == "etcd" %}
   - apiGroups:
@@ -72,20 +81,16 @@ rules:
       - globalbgpconfigs
       - bgpconfigurations
       - ippools
-{% if calico_version is version('v3.6.0', '>=') %}
+      - ipreservations
       - ipamblocks
-{% endif %}
       - globalnetworkpolicies
       - globalnetworksets
       - networkpolicies
-{% if calico_version is version('v3.7.0', '>=') %}
       - networksets
-{% endif %}
       - clusterinformations
       - hostendpoints
-{% if calico_version is version('v3.9.0', '>=') %}
       - blockaffinities
-{% endif %}
+      - caliconodestatuses
     verbs:
       - get
       - list
@@ -98,6 +103,12 @@ rules:
       - clusterinformations
     verbs:
       - create
+      - update
+  # Calico must update some CRDs.
+  - apiGroups: [ "crd.projectcalico.org" ]
+    resources:
+      - caliconodestatuses
+    verbs:
       - update
   # Calico stores some configuration information on the node.
   - apiGroups: [""]
@@ -116,7 +127,6 @@ rules:
     verbs:
       - create
       - update
-{% if calico_version is version('v3.6.0', '>=') %}
   # These permissions are required for Calico CNI to perform IPAM allocations.
   - apiGroups: ["crd.projectcalico.org"]
     resources:
@@ -134,6 +144,7 @@ rules:
       - ipamconfigs
     verbs:
       - get
+      - create
   # Block affinities must also be watchable by confd for route aggregation.
   - apiGroups: ["crd.projectcalico.org"]
     resources:
@@ -148,4 +159,11 @@ rules:
     verbs:
       - get
 {% endif %}
-{% endif %}
+  # Used for creating service account tokens to be used by the CNI plugin
+  - apiGroups: [""]
+    resources:
+      - serviceaccounts/token
+    resourceNames:
+      - calico-node
+    verbs:
+      - create

@@ -4,7 +4,7 @@ Kube-OVN integrates the OVN-based Network Virtualization with Kubernetes. It off
 
 For more information please check [Kube-OVN documentation](https://github.com/alauda/kube-ovn)
 
-**Warning:** Kernel version (`cat /proc/version`) needs to be different than `3.10.0-862` or kube-ovn won't start and will print this message:
+**Warning:** Kernel version (`cat /proc/version`) needs to be different from `3.10.0-862` or kube-ovn won't start and will print this message:
 
 ```bash
 kernel version 3.10.0-862 has a nat related bug that will affect ovs function, please update to a version greater than 3.10.0-898
@@ -12,7 +12,7 @@ kernel version 3.10.0-862 has a nat related bug that will affect ovs function, p
 
 ## How to use it
 
-Enable kube-ovn in `group_vars/k8s-cluster/k8s-cluster.yml`
+Enable kube-ovn in `group_vars/k8s_cluster/k8s_cluster.yml`
 
 ```yml
 ...

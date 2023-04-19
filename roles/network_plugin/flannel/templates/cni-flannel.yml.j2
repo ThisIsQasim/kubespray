@@ -31,18 +31,29 @@ data:
   net-conf.json: |
     {
       "Network": "{{ kube_pods_subnet }}",
+      "EnableIPv4": true,
+{%   if enable_dual_stack_networks %}
+      "EnableIPv6": true,
+      "IPv6Network": "{{ kube_pods_subnet_ipv6 }}",
+{%   endif %}
       "Backend": {
         "Type": "{{ flannel_backend_type }}"{% if flannel_backend_type == "vxlan" %},
         "VNI": {{ flannel_vxlan_vni }},
-        "Port": {{ flannel_vxlan_port }}
+        "Port": {{ flannel_vxlan_port }},
+        "DirectRouting": {{ flannel_vxlan_direct_routing | to_json }}
 {% endif %}
       }
     }
+{% for arch in ['amd64', 'arm64', 'arm', 'ppc64le', 's390x'] %}
 ---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
+{% if arch == 'amd64' %}
   name: kube-flannel
+{% else %}
+  name: kube-flannel-ds-{{ arch }}
+{% endif %}
   namespace: kube-system
   labels:
     tier: node
@@ -74,7 +85,7 @@ spec:
         securityContext:
           privileged: false
           capabilities:
-            add: ["NET_ADMIN"]
+            add: ["NET_ADMIN", "NET_RAW"]
         env:
         - name: POD_NAME
           valueFrom:
@@ -84,11 +95,15 @@ spec:
           valueFrom:
             fieldRef:
               fieldPath: metadata.namespace
+        - name: EVENT_QUEUE_DEPTH
+          value: "5000"
         volumeMounts:
         - name: run
           mountPath: /run/flannel
         - name: flannel-cfg
           mountPath: /etc/kube-flannel/
+        - name: xtables-lock
+          mountPath: /run/xtables.lock
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -101,8 +116,19 @@ spec:
                   - key: kubernetes.io/arch
                     operator: In
                     values:
-                      - amd64
+                      - {{ arch }}
       initContainers:
+      - name: install-cni-plugin
+        image: {{ flannel_init_image_repo }}:{{ flannel_init_image_tag }}
+        command:
+        - cp
+        args:
+        - -f
+        - /flannel
+        - /opt/cni/bin/flannel
+        volumeMounts:
+        - name: cni-plugin
+          mountPath: /opt/cni/bin
       - name: install-cni
         image: {{ flannel_image_repo }}:{{ flannel_image_tag }}
         command:
@@ -130,10 +156,15 @@ spec:
         - name: flannel-cfg
           configMap:
             name: kube-flannel-cfg
-        - name: host-cni-bin
+        - name: xtables-lock
+          hostPath:
+            path: /run/xtables.lock
+            type: FileOrCreate
+        - name: cni-plugin
           hostPath:
             path: /opt/cni/bin
   updateStrategy:
     rollingUpdate:
       maxUnavailable: {{ serial | default('20%') }}
     type: RollingUpdate
+{% endfor %}

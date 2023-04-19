@@ -9,16 +9,13 @@ Vagrant.require_version ">= 2.0.0"
 
 CONFIG = File.join(File.dirname(__FILE__), ENV['KUBESPRAY_VAGRANT_CONFIG'] || 'vagrant/config.rb')
 
-COREOS_URL_TEMPLATE = "https://storage.googleapis.com/%s.release.core-os.net/amd64-usr/current/coreos_production_vagrant.json"
 FLATCAR_URL_TEMPLATE = "https://%s.release.flatcar-linux.net/amd64-usr/current/flatcar_production_vagrant.json"
+FEDORA35_MIRROR = "https://download.fedoraproject.org/pub/fedora/linux/releases/35/Cloud/x86_64/images/Fedora-Cloud-Base-Vagrant-35-1.2.x86_64.vagrant-libvirt.box"
 
 # Uniq disk UUID for libvirt
 DISK_UUID = Time.now.utc.to_i
 
 SUPPORTED_OS = {
-  "coreos-stable"       => {box: "coreos-stable",              user: "core", box_url: COREOS_URL_TEMPLATE % ["stable"]},
-  "coreos-alpha"        => {box: "coreos-alpha",               user: "core", box_url: COREOS_URL_TEMPLATE % ["alpha"]},
-  "coreos-beta"         => {box: "coreos-beta",                user: "core", box_url: COREOS_URL_TEMPLATE % ["beta"]},
   "flatcar-stable"      => {box: "flatcar-stable",             user: "core", box_url: FLATCAR_URL_TEMPLATE % ["stable"]},
   "flatcar-beta"        => {box: "flatcar-beta",               user: "core", box_url: FLATCAR_URL_TEMPLATE % ["beta"]},
   "flatcar-alpha"       => {box: "flatcar-alpha",              user: "core", box_url: FLATCAR_URL_TEMPLATE % ["alpha"]},
@@ -30,12 +27,17 @@ SUPPORTED_OS = {
   "centos-bento"        => {box: "bento/centos-7.6",           user: "vagrant"},
   "centos8"             => {box: "centos/8",                   user: "vagrant"},
   "centos8-bento"       => {box: "bento/centos-8",             user: "vagrant"},
-  "fedora30"            => {box: "fedora/30-cloud-base",       user: "vagrant"},
-  "fedora31"            => {box: "fedora/31-cloud-base",       user: "vagrant"},
-  "opensuse"            => {box: "bento/opensuse-leap-15.1",   user: "vagrant"},
+  "almalinux8"          => {box: "almalinux/8",                user: "vagrant"},
+  "almalinux8-bento"    => {box: "bento/almalinux-8",          user: "vagrant"},
+  "rockylinux8"         => {box: "generic/rocky8",             user: "vagrant"},
+  "fedora35"            => {box: "fedora/35-cloud-base",       user: "vagrant", box_url: FEDORA35_MIRROR},
+  "fedora36"            => {box: "fedora/36-cloud-base",       user: "vagrant"},
+  "opensuse"            => {box: "opensuse/Leap-15.4.x86_64",  user: "vagrant"},
   "opensuse-tumbleweed" => {box: "opensuse/Tumbleweed.x86_64", user: "vagrant"},
   "oraclelinux"         => {box: "generic/oracle7",            user: "vagrant"},
   "oraclelinux8"        => {box: "generic/oracle8",            user: "vagrant"},
+  "rhel7"               => {box: "generic/rhel7",              user: "vagrant"},
+  "rhel8"               => {box: "generic/rhel8",              user: "vagrant"},
 }
 
 if File.exist?(CONFIG)
@@ -47,20 +49,21 @@ $num_instances ||= 3
 $instance_name_prefix ||= "k8s"
 $vm_gui ||= false
 $vm_memory ||= 2048
-$vm_cpus ||= 1
+$vm_cpus ||= 2
 $shared_folders ||= {}
 $forwarded_ports ||= {}
 $subnet ||= "172.18.8"
+$subnet_ipv6 ||= "fd3c:b398:0698:0756"
 $os ||= "ubuntu1804"
 $network_plugin ||= "flannel"
-# Setting multi_networking to true will install Multus: https://github.com/intel/multus-cni
-$multi_networking ||= false
+# Setting multi_networking to true will install Multus: https://github.com/k8snetworkplumbingwg/multus-cni
+$multi_networking ||= "False"
 $download_run_once ||= "True"
-$download_force_cache ||= "True"
+$download_force_cache ||= "False"
 # The first three nodes are etcd servers
-$etcd_instances ||= $num_instances
+$etcd_instances ||= [$num_instances, 3].min
 # The first two nodes are kube masters
-$kube_master_instances ||= $num_instances == 1 ? $num_instances : ($num_instances - 1)
+$kube_master_instances ||= [$num_instances, 2].min
 # All nodes are kube nodes
 $kube_node_instances ||= $num_instances
 # The following only works when using the libvirt provider
@@ -69,13 +72,23 @@ $kube_node_instances_with_disks_size ||= "20G"
 $kube_node_instances_with_disks_number ||= 2
 $override_disk_size ||= false
 $disk_size ||= "20GB"
-$local_path_provisioner_enabled ||= false
+$local_path_provisioner_enabled ||= "False"
 $local_path_provisioner_claim_root ||= "/opt/local-path-provisioner/"
 $libvirt_nested ||= false
+# boolean or string (e.g. "-vvv")
+$ansible_verbosity ||= false
+$ansible_tags ||= ENV['VAGRANT_ANSIBLE_TAGS'] || ""
 
 $playbook ||= "cluster.yml"
 
 host_vars = {}
+
+# throw error if os is not supported
+if ! SUPPORTED_OS.key?($os)
+  puts "Unsupported OS: #{$os}"
+  puts "Supported OS are: #{SUPPORTED_OS.keys.join(', ')}"
+  exit 1
+end
 
 $box = SUPPORTED_OS[$os][:box]
 # if $inventory is not set, try to use example
@@ -87,16 +100,16 @@ $inventory = File.absolute_path($inventory, File.dirname(__FILE__))
 if ! File.exist?(File.join(File.dirname($inventory), "hosts.ini"))
   $vagrant_ansible = File.join(File.dirname(__FILE__), ".vagrant", "provisioners", "ansible")
   FileUtils.mkdir_p($vagrant_ansible) if ! File.exist?($vagrant_ansible)
-  if ! File.exist?(File.join($vagrant_ansible,"inventory"))
-    FileUtils.ln_s($inventory, File.join($vagrant_ansible,"inventory"))
-  end
+  $vagrant_inventory = File.join($vagrant_ansible,"inventory")
+  FileUtils.rm_f($vagrant_inventory)
+  FileUtils.ln_s($inventory, $vagrant_inventory)
 end
 
 if Vagrant.has_plugin?("vagrant-proxyconf")
-    $no_proxy = ENV['NO_PROXY'] || ENV['no_proxy'] || "127.0.0.1,localhost"
-    (1..$num_instances).each do |i|
-        $no_proxy += ",#{$subnet}.#{i+100}"
-    end
+  $no_proxy = ENV['NO_PROXY'] || ENV['no_proxy'] || "127.0.0.1,localhost"
+  (1..$num_instances).each do |i|
+      $no_proxy += ",#{$subnet}.#{i+100}"
+  end
 end
 
 Vagrant.configure("2") do |config|
@@ -146,6 +159,7 @@ Vagrant.configure("2") do |config|
         vb.gui = $vm_gui
         vb.linked_clone = true
         vb.customize ["modifyvm", :id, "--vram", "8"] # ubuntu defaults to 256 MB which is a waste of precious RAM
+        vb.customize ["modifyvm", :id, "--audio", "none"]
       end
 
       node.vm.provider :libvirt do |lv|
@@ -167,7 +181,7 @@ Vagrant.configure("2") do |config|
           # always make /dev/sd{a/b/c} so that CI can ensure that
           # virtualbox and libvirt will have the same devices to use for OSDs
           (1..$kube_node_instances_with_disks_number).each do |d|
-            lv.storage :file, :device => "hd#{driverletters[d]}", :path => "disk-#{i}-#{d}-#{DISK_UUID}.disk", :size => $kube_node_instances_with_disks_size, :bus => "ide"
+            lv.storage :file, :device => "hd#{driverletters[d]}", :path => "disk-#{i}-#{d}-#{DISK_UUID}.disk", :size => $kube_node_instances_with_disks_size, :bus => "scsi"
           end
         end
       end
@@ -180,22 +194,42 @@ Vagrant.configure("2") do |config|
         node.vm.network "forwarded_port", guest: guest, host: host, auto_correct: true
       end
 
-      node.vm.synced_folder ".", "/vagrant", disabled: false, type: "rsync", rsync__args: ['--verbose', '--archive', '--delete', '-z'] , rsync__exclude: ['.git','venv']
-      $shared_folders.each do |src, dst|
-        node.vm.synced_folder src, dst, type: "rsync", rsync__args: ['--verbose', '--archive', '--delete', '-z']
+      if ["rhel7","rhel8"].include? $os
+        # Vagrant synced_folder rsync options cannot be used for RHEL boxes as Rsync package cannot
+        # be installed until the host is registered with a valid Red Hat support subscription
+        node.vm.synced_folder ".", "/vagrant", disabled: false
+        $shared_folders.each do |src, dst|
+          node.vm.synced_folder src, dst
+        end
+      else
+        node.vm.synced_folder ".", "/vagrant", disabled: false, type: "rsync", rsync__args: ['--verbose', '--archive', '--delete', '-z'] , rsync__exclude: ['.git','venv']
+        $shared_folders.each do |src, dst|
+          node.vm.synced_folder src, dst, type: "rsync", rsync__args: ['--verbose', '--archive', '--delete', '-z']
+        end
       end
 
       ip = "#{$subnet}.#{i+100}"
-      node.vm.network :private_network, ip: ip
+      node.vm.network :private_network, ip: ip,
+        :libvirt__guest_ipv6 => 'yes',
+        :libvirt__ipv6_address => "#{$subnet_ipv6}::#{i+100}",
+        :libvirt__ipv6_prefix => "64",
+        :libvirt__forward_mode => "none",
+        :libvirt__dhcp_enabled => false
 
       # Disable swap for each vm
       node.vm.provision "shell", inline: "swapoff -a"
 
-      # Disable firewalld on oraclelinux vms
-      if ["oraclelinux","oraclelinux8"].include? $os
+      # ubuntu1804 and ubuntu2004 have IPv6 explicitly disabled. This undoes that.
+      if ["ubuntu1804", "ubuntu2004"].include? $os
+        node.vm.provision "shell", inline: "rm -f /etc/modprobe.d/local.conf"
+        node.vm.provision "shell", inline: "sed -i '/net.ipv6.conf.all.disable_ipv6/d' /etc/sysctl.d/99-sysctl.conf /etc/sysctl.conf"
+      end
+
+      # Disable firewalld on oraclelinux/redhat vms
+      if ["oraclelinux","oraclelinux8","rhel7","rhel8"].include? $os
         node.vm.provision "shell", inline: "systemctl stop firewalld; systemctl disable firewalld"
       end
-      
+
       host_vars[vm_name] = {
         "ip": ip,
         "flannel_interface": "eth1",
@@ -218,9 +252,11 @@ Vagrant.configure("2") do |config|
       }
 
       # Only execute the Ansible provisioner once, when all the machines are up and ready.
+      # And limit the action to gathering facts, the full playbook is going to be ran by testcases_run.sh
       if i == $num_instances
         node.vm.provision "ansible" do |ansible|
           ansible.playbook = $playbook
+          ansible.verbose = $ansible_verbosity
           $ansible_inventory_path = File.join( $inventory, "hosts.ini")
           if File.exist?($ansible_inventory_path)
             ansible.inventory_path = $ansible_inventory_path
@@ -230,12 +266,14 @@ Vagrant.configure("2") do |config|
           ansible.host_key_checking = false
           ansible.raw_arguments = ["--forks=#{$num_instances}", "--flush-cache", "-e ansible_become_pass=vagrant"]
           ansible.host_vars = host_vars
-          #ansible.tags = ['download']
+          if $ansible_tags != ""
+            ansible.tags = [$ansible_tags]
+          end
           ansible.groups = {
             "etcd" => ["#{$instance_name_prefix}-[1:#{$etcd_instances}]"],
-            "kube-master" => ["#{$instance_name_prefix}-[1:#{$kube_master_instances}]"],
-            "kube-node" => ["#{$instance_name_prefix}-[1:#{$kube_node_instances}]"],
-            "k8s-cluster:children" => ["kube-master", "kube-node"],
+            "kube_control_plane" => ["#{$instance_name_prefix}-[1:#{$kube_master_instances}]"],
+            "kube_node" => ["#{$instance_name_prefix}-[1:#{$kube_node_instances}]"],
+            "k8s_cluster:children" => ["kube_control_plane", "kube_node"],
           }
         end
       end

@@ -9,10 +9,14 @@ metadata:
     addonmanager.kubernetes.io/mode: Reconcile
     version: {{ metrics_server_version }}
 spec:
+  replicas: {{ metrics_server_replicas }}
   selector:
     matchLabels:
       app.kubernetes.io/name: metrics-server
       version: {{ metrics_server_version }}
+  strategy:
+    rollingUpdate:
+      maxUnavailable: 0
   template:
     metadata:
       name: metrics-server
@@ -24,24 +28,25 @@ spec:
     spec:
       priorityClassName: system-cluster-critical
       serviceAccountName: metrics-server
+      hostNetwork: {{ metrics_server_host_network | default(false) }}
       containers:
       - name: metrics-server
         image: {{ metrics_server_image_repo }}:{{ metrics_server_image_tag }}
         imagePullPolicy: {{ k8s_image_pull_policy }}
-        command:
-        - /metrics-server
+        args:
         - --logtostderr
         - --cert-dir=/tmp
-        - --secure-port=8443
+        - --secure-port={{ metrics_server_container_port }}
 {% if metrics_server_kubelet_preferred_address_types %}
         - --kubelet-preferred-address-types={{ metrics_server_kubelet_preferred_address_types }}
 {% endif %}
+        - --kubelet-use-node-status-port
 {% if metrics_server_kubelet_insecure_tls %}
         - --kubelet-insecure-tls
 {% endif %}
         - --metric-resolution={{ metrics_server_metric_resolution }}
         ports:
-        - containerPort: 8443
+        - containerPort: {{ metrics_server_container_port }}
           name: https
           protocol: TCP
         volumeMounts:
@@ -49,85 +54,54 @@ spec:
           mountPath: /tmp
         livenessProbe:
           httpGet:
-            path: /healthz
+            path: /livez
             port: https
             scheme: HTTPS
-          successThreshold: 1
-          initialDelaySeconds: 20
+          periodSeconds: 10
           failureThreshold: 3
-          timeoutSeconds: 10
+          initialDelaySeconds: 40
         readinessProbe:
           httpGet:
-            path: /healthz
+            path: /readyz
             port: https
             scheme: HTTPS
-          successThreshold: 1
-          initialDelaySeconds: 20
+          periodSeconds: 10
           failureThreshold: 3
-          timeoutSeconds: 10
+          initialDelaySeconds: 40
         securityContext:
-          allowPrivilegeEscalation: false
-          capabilities:
-            drop: ["all"]
           readOnlyRootFilesystem: true
           runAsGroup: 10001
           runAsNonRoot: true
           runAsUser: 10001
-      - name: metrics-server-nanny
-        image: {{ addon_resizer_image_repo }}:{{ addon_resizer_image_tag }}
-        imagePullPolicy: {{ k8s_image_pull_policy }}
+          allowPrivilegeEscalation: false
         resources:
           limits:
-            cpu: {{ addon_resizer_limits_cpu }}
-            memory: {{ addon_resizer_limits_memory }}
+            cpu: {{ metrics_server_limits_cpu }}
+            memory: {{ metrics_server_limits_memory }}
           requests:
-            cpu: {{ addon_resizer_requests_cpu }}
-            memory: {{ addon_resizer_requests_memory }}
-        env:
-          - name: MY_POD_NAME
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.name
-          - name: MY_POD_NAMESPACE
-            valueFrom:
-              fieldRef:
-                fieldPath: metadata.namespace
-        volumeMounts:
-        - name: metrics-server-config-volume
-          mountPath: /etc/config
-        command:
-          - /pod_nanny
-          - --config-dir=/etc/config
-          - --cpu={{ metrics_server_cpu }}
-          - --extra-cpu=0.5m
-          - --memory={{ metrics_server_memory }}
-          - --extra-memory={{ metrics_server_memory_per_node }}
-          - --threshold=5
-          - --deployment=metrics-server
-          - --container=metrics-server
-          - --poll-period=300000
-          - --estimator=exponential
-          # Specifies the smallest cluster (defined in number of nodes)
-          # resources will be scaled to.
-          - --minClusterSize={{ metrics_server_min_cluster_size }}
+            cpu: {{ metrics_server_requests_cpu }}
+            memory: {{ metrics_server_requests_memory }}
       volumes:
-        - name: metrics-server-config-volume
-          configMap:
-            name: metrics-server-config
         - name: tmp
           emptyDir: {}
 {% if not masters_are_not_tainted %}
       tolerations:
         - key: node-role.kubernetes.io/master
           effect: NoSchedule
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
 {% endif %}
       affinity:
-        nodeAffinity:
+        podAntiAffinity:
           preferredDuringSchedulingIgnoredDuringExecution:
           - weight: 100
-            preference:
-              matchExpressions:
-              - key: node-role.kubernetes.io/master
-                operator: In
-                values:
-                - ""
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                  - metrics-server
+              topologyKey: kubernetes.io/hostname
+              namespaces:
+              - kube-system
